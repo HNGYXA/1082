@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VAS1082调试工具</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 夜间模式样式配置 */
+        .dark-theme {
+            background-color: #1a1a1a;
+            color: #eaeaea !important; /* 基础文本颜色 */
+        }
+        .dark-theme .serial-port-card,
+        .dark-theme .data-card,
+        .dark-theme .control-card,
+        .dark-theme .config-card {
+            background: linear-gradient(135deg, #2d2d2d 0%, #1f1f1f 100%);
+            color: #e0e0e0;
+            border: 1px solid #444;
+        }
+        /* 特殊覆盖卡片标题颜色 */
+        .dark-theme .text-gray-800 {
+            color: #f3f4f6 !important; /* 浅灰色 */
+        }
+        .dark-theme .gradient-header {
+            background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+        .dark-theme input,
+        .dark-theme select {
+            background-color: #333;
+            color: #fff;
+            border-color: #555;
+        }
+        .dark-theme .console-output {
+            background-color: #111;
+            color: #4ade80;
+        }
+        .dark-theme .hex-input {
+            color: #cbd5e1 !important; /* 浅蓝灰色 */
+            background-color: #2d3748 !important; /* 深蓝灰背景 */
+        }
+        .dark-theme .btn-primary {
+            background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+        .dark-theme .btn-danger {
+            background: linear-gradient(90deg, #7f1d1d 0%, #ef4444 100%);
+        }
+        .dark-theme .btn-success {
+            background: linear-gradient(90deg, #065f46 0%, #10b981 100%);
+        }
+        .dark-theme .quickcommand {
+            background-color: #2d3748;
+            color: #90caf9;
+        }
+        /* 添加到现有.dark-theme规则中 */
+        .dark-theme #channel_freq_sel {
+          background: linear-gradient(135deg, #2d3748, #1f2937) !important;
+          color: #e2e8f0 !important;
+          border: 1px solid #4a5568 !important;
+        }
+        .dark-theme #channel_freq_sel option {
+          background: #2d3748;
+          color: #cbd5e0;
+        }
+        /* 强制指定全局字体栈 - 修复Win11字体异常 */
+        body, button, input, select, textarea {
+          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif !important;
+          -webkit-font-smoothing: antialiased; /* 抗锯齿优化 */
+          text-rendering: optimizeLegibility;
+        }
+        .console-output {
+          font-family: 'Courier New', monospace !important; /* 控制台字体锁定 */
+        }
+        /* 模式切换按钮样式 */
+        #theme-toggle {
+            background: none; /*背景颜色*/
+            border: none; /*边框*/
+            font-size: 1.5rem; /*图标大小*/
+            cursor: pointer; /*鼠标悬停显示*/
+            margin-left: 15px; /*左侧间距*/
+            color: #fbbf24; /*图标颜色*/
+            transition: transform 0.3s ease; /*过渡动画*/
+        }
+        #theme-toggle:hover {
+        /*伪类
+            :link：针对未被访问过的链接。
+            :visited：用于已访问过的链接。
+            :active：在元素被激活（如点击时）起作用。
+            :focus：当元素获得焦点（如通过键盘 Tab 键选中）时生效。
+        */
+            transform: rotate(15deg);
+        }
+
+        @keyframes breathing {
+        /*
+             @keyframes :自定义动画，可以改变关键帧
+        */
+            0% { color: #000; }          /* 初始颜色 */
+            50% { color: #799cc4; }     /* 中间过渡颜色（可自定义） */
+            100% { color: #000; }        /* 恢复初始颜色 */
+        }
+
+        .serial-port-card {
+            transition: all 0.2s ease;
+        }
+        .serial-port-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .data-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #f5e6ff 100%);
+        }
+        .control-card {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        }
+        .config-card {
+            background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+        }
+        /*开始*/
+        .status-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        /*结束*/
+
+        .console-output {
+            height: 330px;
+            width: 800px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .gradient-header {
+            background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+        }
+        .btn-purple-gradient {
+            background: linear-gradient(135deg, #27b0ab, #3ab7a4);
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .btn-purple-gradient:hover {
+            background: linear-gradient(135deg, #7b1fa2, #5e35b1);
+            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+        }
+        .btn-danger {
+            background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+        }
+        .btn-danger:hover {
+            background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+        }
+        .btn-success {
+            background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+        }
+        .btn-success:hover {
+            background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+        }
+        .scrollbar-style::-webkit-scrollbar {
+            width: 8px;
+        }
+        .scrollbar-style::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .scrollbar-style::-webkit-scrollbar-thumb {
+            background: #c5c5c5;
+            border-radius: 4px;
+        }
+        .scrollbar-style::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        .hex-input {
+            font-family: 'Courier New', monospace;
+        }
+        .tab-active {
+            border-bottom: 3px solid #3b82f6;
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        /*开始*/
+        .top-section {
+            display: grid;
+            grid-template-columns: 2fr 5fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 1024px) { /*屏幕分辨率小于1024触发*/
+            .top-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        /* Win11专属布局加固 */
+        @media (max-width: 1280px) {
+          .top-section {
+            grid-template-columns: 1fr 2fr 1fr !important; /* 三栏比例优化 */
+          }
+          .console-output {
+            width: 100% !important; /* 控制台宽度自适应 */
+          }
+        }
+        /* 防止内容挤压变形 */
+        .serial-port-card, .data-card {
+          min-width: 280px; /* 最小宽度保护 */
+          overflow: hidden;  /* 内容溢出防护 */
+        }
+        /*结束*/
+        /*开始*/
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 1024px) {
+            .top-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        /*结束*/
+        #channel1_freq_label {
+            color: rgba(129, 140, 248, 0.6); /* 原色为 text-indigo-800，Alpha 值设为 0.6 */
+        }
+        #channel2_freq_label {
+            color: rgba(129, 140, 248, 0.6); /* 原色为 text-indigo-800，Alpha 值设为 0.6 */
+        }
+        #channel3_freq_label {
+            color: rgba(129, 140, 248, 0.6); /* 原色为 text-indigo-800，Alpha 值设为 0.6 */
+        }
+        #channel4_freq_label {
+            color: rgba(129, 140, 248, 0.6); /* 原色为 text-indigo-800，Alpha 值设为 0.6 */
+        }
+
+        /* 添加灯泡样式 */
+        .bulb-container {
+            position: relative;
+            width: 120px;
+            height: 180px;
+            margin: 0 auto 20px;
+        }
+        .bulb-body {
+            position: absolute;
+            bottom: 0;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid #d1d5db;
+            background: linear-gradient(to bottom, #fef3c7, #fbbf24);
+            border-color: #d97706;
+            box-shadow:
+            inset 0 -8px 15px rgba(255, 255, 255, 0.8),
+            inset 0 8px 15px rgba(255, 255, 255, 0.4);
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+
+        .dark-theme .bulb-body {/*夜间模式*/
+            border-color: #d97706;
+            background: linear-gradient(to bottom, #fef3c7, #fbbf24);
+        }
+        .bulb-base {
+            position: absolute;
+            bottom: -20px;
+            width: 40px;
+            height: 20px;
+            background: linear-gradient(to bottom, #9ca3af, #6b7280);
+            border-radius: 4px 4px 0 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+        }
+        .bulb-filament {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            width: 6px;
+            height: 15px;
+            background: linear-gradient(to bottom, #ffd700, #ff8c00);
+            border-radius: 3px;
+            opacity: 0;
+            transform: translateX(-50%);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 1;
+        }
+
+        /* 灯泡百分比样式 */
+        #brightnessPercent {
+            position: absolute;
+            top: -0px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.3s, opacity 0.3s;
+            opacity: 0.9;
+            z-index: 10;
+        }
+        .dark-theme #brightnessPercent {
+            color: #fcd34d;
+            text-shadow: 0 0 8px rgba(252, 211, 77, 0.6);
+        }
+        .brightness-highlight {
+            transform: translateX(-50%) scale(1.3);
+            opacity: 1;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+        }
+        /* 灯丝动画 */
+        @keyframes filament-flicker {
+            0% { transform: translateX(-50%) scaleY(1); }
+            25% { transform: translateX(-50%) scaleY(1.1); }
+            50% { transform: translateX(-50%) scaleY(0.95); }
+            75% { transform: translateX(-50%) scaleY(1.05); }
+            100% { transform: translateX(-50%) scaleY(1); }
+        }
+        /*占位*/
+        .hidden-element {
+        visibility: hidden;
+      }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+    <!-- 顶部标题栏 -->
+    <header class="gradient-header text-white py-4 shadow-lg">
+        <div class="container mx-auto px-4 flex items-center ">
+            <i class="fas fa-microchip text-2xl mr-3"></i>
+            <h1 class="text-2xl font-bold">VAS1082调试工具</h1>
+            <div class="ml-auto flex items-center">
+                <span id="connection-status" class="status-badge bg-red-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+                    <i class="fas fa-circle mr-2 text-xs"></i> 未连接
+                </span>
+                <!-- 添加夜间模式切换按钮 -->
+                <button id="theme-toggle" title="切换夜间模式">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-2 py-6">
+        <!-- 顶部部分：串口配置和串口控制台 -->
+        <div class="top-section mb-6">
+            <!-- 串口配置卡片 -->
+            <div class="serial-port-card bg-white rounded-xl shadow-lg p-2">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-plug mr-2 text-blue-500"></i>串口配置
+                </h2>
+                <button id="toggle-port" class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                    <i class="fas fa-power-off mr-2"></i>连接串口
+                </button>
+
+                <div class="grid grid-cols-1 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">波特率</label>
+                        <select id="baud-rate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option>9600</option>
+                            <option>19200</option>
+                            <option>38400</option>
+                            <option>57600</option>
+                            <option selected>115200</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">数据位</label>
+                        <select id="data-bits" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option>5</option>
+                            <option>6</option>
+                            <option>7</option>
+                            <option selected>8</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">停止位</label>
+                        <select id="stop-bits" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option selected>1</option>
+                            <option>1.5</option>
+                            <option>2</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">校验位</label>
+                        <select id="parity" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option selected>None</option>
+                            <option>Even</option>
+                            <option>Odd</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 串口控制台 -->
+            <div class="serial-port-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-terminal mr-2 text-gray-600"></i> 串口控制台
+                    </h2>
+                    <button id='clearConsole' class="px-3 py-1 bg-gray-100 rounded-lg text-gray-700 hover:bg-gray-200">
+                        <i class="fas fa-trash-alt mr-1"></i> 清除
+                    </button>
+                </div>
+
+                <div id="console-output" class="console-output bg-gray-900 text-green-400 p-4 rounded-lg overflow-y-auto scrollbar-style">
+                    <div>> 等待连接串口...</div>
+                </div>
+            </div>
+            <!-- 串口通信 -->
+            <div class="serial-port-card bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center mb-5">
+                    <i class="fas fa-bolt mr-2 text-yellow-500"></i> 串口通信
+                </h2>
+                <div class="flex mb-3">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="flex mb-4">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="flex mb-3">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="flex mb-3">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+
+                <div class="flex mb-3">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="flex mb-3">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                    <button class="quickcommand bg-blue-100 text-blue-700 px-3 rounded-r-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 mb-6">
+            <div class="data-card rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-sliders-h mr-2 text-green-500"></i> 参数配置
+                </h2>
+                <div class="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                    <div class="grid grid-cols-2 lg:grid-cols-2 gap-6">
+                        <select id="channel_freq_sel" class="w-full px-4 py-3 border-0 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 shadow-sm
+                            focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-gradient-to-r focus:from-purple-50 focus:to-indigo-50
+                            text-indigo-900 font-medium transition-all duration-300 hover:shadow-md">
+                            <option selected class="bg-indigo-100 text-indigo-900">1KHZ</option>
+                            <option class="bg-indigo-50 text-indigo-800">2KHZ</option>
+                            <option class="bg-indigo-50 text-indigo-800">4KHZ</option>
+                            <option class="bg-indigo-50 text-indigo-800">16KHZ</option>
+                            <option class="bg-indigo-50 text-indigo-800">20KHZ</option>
+                            <option class="bg-indigo-50 text-indigo-800">25KHZ</option>
+                        </select>
+                        <button id="channel_freq_button" class="btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                            <i class="fas fa-cogs mr-2"></i>频率配置
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-3 lg:grid-cols-3 gap-6">
+                       <button id="aimming_curve1" class="aimming_curve btn-primary w-full py-2 rounded-lg font-medium text-white">
+                        指数曲线
+                        </button>
+                        <button id="aimming_curve2" class="aimming_curve btn-danger w-full py-2 rounded-lg font-medium text-white">
+                        线性曲线
+                        </button>
+                        <button id="aimming_curve3" class="aimming_curve btn-danger w-full py-2 rounded-lg font-medium text-white">
+                        调光曲线3
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 lg:grid-cols-3 gap-6">
+                        <button id="channel_circular_button" class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                                循环调光:关
+                        </button>
+                        <div>
+                            <label id='channel_maxminstoptime_label' class="block text-sm font-medium text-yellow-600 mb-1 font-medium tracking-wide">停留时间(s)</label>
+                            <input id="channel_maxminstoptime_input" type="number" max="100" min="0" value="1" step="1" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-card rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                   <i class="fas fa-sun bg-gradient-to-r from-blue-400 to-cyan-400 text-white p-2 rounded-full transition-all duration-300 hover:from-yellow-300 hover:to-amber-500"></i> 通道配置
+                </h2>
+                <div class="grid grid-cols-2 lg:grid-cols-2 gap-3">
+                    <div>
+                        <button id='channel1_en' class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                            通道1:关
+                        </button>
+                    </div>
+                    <div>
+                        <button id='channel2_en' class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                            通道2:关
+                        </button>
+                    </div>
+                    <div>
+                        <button class="hidden-element w-full py-2 rounded-lg font-medium text-white">
+                            占位
+                        </button>
+                    </div>
+                    <div>
+                        <button class="hidden-element w-full py-2 rounded-lg font-medium text-white">
+                            占位
+                        </button>
+                    </div>
+                    <div>
+                        <button id='channel3_en' class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                            通道3:关
+                        </button>
+                    </div>
+                    <div>
+                        <button id='channel4_en' class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                            通道4:关
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-card rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                   <i class="fas fa-sun bg-gradient-to-r from-blue-400 to-cyan-400 text-white p-2 rounded-full transition-all duration-300 hover:from-yellow-300 hover:to-amber-500"></i> 自动调光
+                </h2>
+                <div class="grid grid-cols-3 lg:grid-cols-3 mb-3 ">
+                    <label id='channel_start_label' class="block text-sm font-medium text-yellow-600 mb-1 font-medium tracking-wide">START(%)</label>
+                    <label id='channel_end_label' class="block text-sm font-medium text-yellow-600 mb-1 font-medium tracking-wide">END(%)</label>
+                    <label id='channel_time_label' class="block text-sm font-medium text-yellow-600 mb-1 font-medium tracking-wide">TIME(s)</label>
+                    <input id="channel_start_input" type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input"
+                        oninput="validateInput(this)" onblur="formatNumber(this)" placeholder="0.00~100">
+                    <input id="channel_end_input" type="text" class="flex-1 px-3 py-2 border rounded-l-lg hex-input"
+                        oninput="validateInput(this)" onblur="formatNumber(this)" placeholder="0.00~100">
+                    <input id='channel_time_input' type="number" max="100" min="0" placeholder="0~100" class="flex-1 px-3 py-2 border rounded-l-lg hex-input">
+                     <button class= "hidden-element btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                           占位
+                    </button>
+                     <button class= "hidden-element btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                           占位
+                    </button>
+                    <button class= "hidden-element btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                           占位
+                    </button>
+                    <button id="channel_qidong_button" class= "btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                            开始调光
+                    </button>
+                    <button id="channel_stop_button" class="btn-purple-gradient w-full py-2 rounded-lg font-medium text-white">
+                            停止调光
+                    </button>
+                    <button id="channel_zanting_button" class="btn-danger w-full py-2 rounded-lg font-medium text-white">
+                            暂停调光
+                    </button>
+                </div>
+            </div>
+
+
+            <div class="data-card rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                   <i class="fas fa-sun bg-gradient-to-r from-blue-400 to-cyan-400 text-white p-2 rounded-full transition-all duration-300 hover:from-yellow-300 hover:to-amber-500"></i> 当前亮度
+                </h2>
+                 <!-- 灯泡容器 -->
+                <div class="bulb-container mx-auto relative w-32 h-48 flex justify-center">
+                    <!-- 亮度百分比显示 -->
+                    <div id="brightnessPercent" class="absolute top-0 w-full text-center text-2xl font-bold
+                        text-indigo-700 dark:text-yellow-300 transition-all duration-300">
+                        0%
+                    </div>
+                    <!-- 灯泡主体 -->
+                    <div id="lightBulb" class="bulb-body"></div>
+                    <!-- 灯泡底座 -->
+                    <div class="bulb-base"></div>
+                    <!-- 灯泡灯丝 -->
+                    <div id="bulbFilament" class="bulb-filament"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let receiveBuffer = new Uint8Array(0);  // 接收缓冲区
+        let receiveTimeout = 50;                // 超时时间(ms)
+        let receiveTimer = null;                // 超时定时器
+        let isDisconnected = false;  //串口断开标准位
+        let serialPort = null;
+        let reader = null;  //读取锁
+        let readerController = null; //读取器
+        let writer = null; //写入器
+        let isPortOpen = false; //串口打开标志
+        let isClosing = false; //串口关闭标志
+
+        let channel1_en_flag = false; //通道1flag
+        let channel2_en_flag = false; //通道2flag
+        let channel3_en_flag = false; //通道3flag
+        let channel4_en_flag = false; //通道4flag
+        let aimming_curve1_flag = true; //曲线1flag
+        let aimming_curve2_flag = false;//曲线2flag
+        let aimming_curve3_flag = false;//曲线3flag
+        let aimming_stop = false; //调光停止flag
+        let aimming_circular_flag = false; //调光循环flag
+
+        // DOM元素
+        const buttons = document.querySelectorAll('.quickcommand');  // 串口通信按钮 选择class = quickcommand的按钮
+        const aimming_curve = document.querySelectorAll('.aimming_curve');  // 切换调光曲线按钮
+        const channel1_en = document.getElementById('channel1_en');
+        const channel2_en = document.getElementById('channel2_en');
+        const channel3_en = document.getElementById('channel3_en');
+        const channel4_en = document.getElementById('channel4_en');
+        const aimming_curve1 = document.getElementById('aimming_curve1');
+        const aimming_curve2 = document.getElementById('aimming_curve2');
+        const aimming_curve3 = document.getElementById('aimming_curve3');
+        const togglePortBtn = document.getElementById('toggle-port'); //连接串口按钮
+        const connectionStatus = document.getElementById('connection-status'); //顶部'未连接'显示
+        const consoleOutput = document.getElementById('console-output'); //控制台输出
+        const clearConsoleBtn = document.getElementById('clearConsole'); //清除控制台内容
+
+        const freqbutton = document.getElementById('channel_freq_button');  // 频率选择
+        const channel_qidong_button = document.getElementById('channel_qidong_button'); //开始调光按钮
+        const channel_stop_button = document.getElementById('channel_stop_button'); //停止调光按钮
+        const channel_circular_button = document.getElementById('channel_circular_button'); //循环调光按钮
+        const channel_zanting_button = document.getElementById('channel_zanting_button'); // 暂停调光
+
+        // 初始化函数
+        async function init() {
+            // === 夜间模式初始化 ===
+            const themeToggle = document.getElementById('theme-toggle');
+            const body = document.body;
+
+            body.classList.add('dark-theme');
+            themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            localStorage.setItem('theme', 'dark');
+
+            // 添加主题切换事件监听
+            themeToggle.addEventListener('click', function() {
+                body.classList.toggle('dark-theme');
+
+                // 更新图标和本地存储
+                if (body.classList.contains('dark-theme')) {
+                    themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+            // === 夜间模式初始化结束 ===
+            updateBulbBrightness(0);
+            setupEventListeners();
+        }
+
+        function updateBulbBrightness(brightness) {
+            const bulb = document.getElementById('lightBulb');
+            const filament = document.getElementById('bulbFilament');
+
+            const percentDisplay = document.getElementById('brightnessPercent');
+
+            // 计算百分比值 (0-100)
+            const percentValue = (brightness * 100).toFixed(2);
+
+            // 更新显示
+            percentDisplay.textContent = `${percentValue}%`;
+            percentDisplay.style.left = '50%';
+            percentDisplay.style.transform = percentValue > 70 ?
+                'translateX(-50%) scale(1.3)' : 'translateX(-50%)';
+
+            // 动态效果：高亮度时放大数字
+            if (percentValue > 70) {
+                percentDisplay.classList.add('brightness-highlight');
+            } else {
+                percentDisplay.classList.remove('brightness-highlight');
+            }
+
+            // 灯泡样式更新
+            const glowIntensity = brightness * 60; // 增强光晕强度
+            const bulbOpacity = 0.3 + brightness * 0.7;
+            const filamentOpacity = brightness > 0.1 ? 1 : 0;
+
+            // 灯泡颜色渐变调整（低亮度时暖黄色，高亮度时亮白色）
+            if (brightness > 0.7) {
+                bulb.style.background = 'linear-gradient(to bottom, #ffffff, #ffffe0)';
+            } else {
+                if (document.body.classList.contains('dark-theme')) {
+                    bulb.style.background = 'linear-gradient(to bottom, #fef3c7, #fbbf24)';
+                } else {
+                    bulb.style.background = 'linear-gradient(to bottom, #f3f4f6, #e5e7eb)';
+                }
+            }
+
+            bulb.style.opacity = bulbOpacity;
+
+            // 灯丝效果
+            filament.style.opacity = filamentOpacity;
+            if (brightness > 0.3) {
+                filament.style.animation = 'filament-flicker 0.5s infinite';
+            } else {
+                filament.style.animation = 'none';
+            }
+        }
+
+        function validateInput(input) {
+            // 仅验证输入格式，不补全小数
+            let value = input.value.trim();
+            if (value === '') return;
+            // 正则验证：允许整数、一位小数或两位小数（输入中途）
+            const isValidFormat = /^(\d{0,2}|100)(\.\d{0,2})?$/.test(value);
+            if (!isValidFormat) {
+                // 移除非法字符，保留输入中途的格式（如1.0）
+                value = value.replace(/[^\d.]/g, '');
+                const parts = value.split('.');
+                if (parts.length > 2) {
+                    value = parts[0] + '.' + parts.slice(1).join('');
+                }
+                if (parts[0].length > 2 || (parts[0].length === 3 && parts[0] > '100')) {
+                    value = '100';
+                }
+                if (parts.length > 1 && parts[1].length > 2) {
+                    value = parts[0] + '.' + parts[1].slice(0, 2);
+                }
+            }
+            // 边界检查，但不补全小数
+            if (value !== '' && value !== '.') {
+                const num = parseFloat(value);
+                if (num < 0) value = '0';
+                else if (num > 100) value = '100';
+            }
+            input.value = value;
+        }
+
+        function formatNumber(input) {
+            // 失去焦点时补全两位小数
+            let value = input.value.trim();
+            if (value === '' || value === '100') return;
+
+            const parts = value.split('.');
+            if (parts.length === 1) {
+                // 整数补全为两位小数
+                input.value = value + '.00';
+            } else if (parts.length === 2 && parts[1].length === 1) {
+                // 一位小数补全为两位
+                input.value = parts[0] + '.' + parts[1] + '0';
+            }
+        }
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            freqbutton.addEventListener('click', freqswitch);
+            channel1_en.addEventListener('click', channel1_enable);
+            channel2_en.addEventListener('click', channel2_enable);
+            channel3_en.addEventListener('click', channel3_enable);
+            channel4_en.addEventListener('click', channel4_enable);
+            channel_qidong_button.addEventListener('click', aimming_init);
+            channel_stop_button.addEventListener('click', aimming_tingzhi);
+            channel_circular_button.addEventListener('click', aimming_circular);
+             channel_zanting_button.addEventListener('click', aimming_zanting);
+            // 串口连接/断开按钮
+            togglePortBtn.addEventListener('click', toggleSerialPort);
+            //清除控制台
+            clearConsoleBtn.addEventListener('click', clear);
+            //串口通信
+            buttons.forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const command = e.target.closest('div').querySelector('input').value;
+                    await sendHexCommand(command);
+                });
+            });
+
+            aimming_curve.forEach(button => { //button:确定哪个按钮
+                button.addEventListener('click', function() { //直接在监听函数体写function逻辑
+                    const buttonid = this.id;
+                    switch(buttonid) {
+                        case 'aimming_curve1': {
+                            aimming_curve1_flag = true;
+                            aimming_curve2_flag = false;
+                            aimming_curve3_flag = false;
+                            aimming_curve1.classList.remove('btn-danger');
+                            aimming_curve1.classList.add('btn-primary');
+                            aimming_curve2.classList.remove('btn-primary');
+                            aimming_curve2.classList.add('btn-danger');
+                            aimming_curve3.classList.remove('btn-primary');
+                            aimming_curve3.classList.add('btn-danger');
+                            addToConsole("当前选择调光曲线1");
+                            break;
+                        }
+                         case 'aimming_curve2': {
+                            aimming_curve1_flag = false;
+                            aimming_curve2_flag = true;
+                            aimming_curve3_flag = false;
+                            aimming_curve1.classList.remove('btn-primary');
+                            aimming_curve1.classList.add('btn-danger');
+                            aimming_curve2.classList.remove('btn-danger');
+                            aimming_curve2.classList.add('btn-primary');
+                            aimming_curve3.classList.remove('btn-primary');
+                            aimming_curve3.classList.add('btn-danger');
+                            addToConsole("当前选择调光曲线2");
+                            break;
+                        }
+                        case 'aimming_curve3': {
+                            aimming_curve1_flag = false;
+                            aimming_curve2_flag = false;
+                            aimming_curve3_flag = true;
+                            aimming_curve1.classList.remove('btn-primary');
+                            aimming_curve1.classList.add('btn-danger');
+                            aimming_curve2.classList.remove('btn-primary');
+                            aimming_curve2.classList.add('btn-danger');
+                            aimming_curve3.classList.remove('btn-danger');
+                            aimming_curve3.classList.add('btn-primary');
+                            addToConsole("当前选择调光曲线3");
+                            break;
+                        }
+                        default: break;
+                    }
+                });
+            });
+            // 回车发送指令
+//            commandInput.addEventListener('keypress', (e) => {
+//                if (e.key === 'Enter') {
+//                    sendCommand();
+//                }
+//            });
+        }
+        async function freqswitch() {
+            if(!isPortOpen) {
+                addToConsole(`串口未开启！`);
+                return;
+            }
+            const freqselect = document.getElementById('channel_freq_sel').value;
+            let currentfreq;
+            switch (freqselect) {
+                case '1KHZ': currentfreq = '0x01';break;
+                case '2KHZ': currentfreq = '0x02';break;
+                case '4KHZ': currentfreq = '0x04';break;
+                case '16KHZ': currentfreq = '0x16';break;
+                case '20KHZ': currentfreq = '0x20';break;
+                case '25KHZ': currentfreq = '0x25';break;
+                default: break;
+            }
+            const channelx_en_total = `0xFE ${currentfreq} 0x88 0xf0`;
+            await sendHexCommand(channelx_en_total);
+        }
+        async function aimming_init() {
+            aimming_stop = false;
+            channel_zanting_button.innerHTML = '暂停调光';
+            channel_zanting_button.classList.remove('btn-primary');
+            channel_zanting_button.classList.add('btn-danger');
+            const aimming_start = document.getElementById('channel_start_input').value;
+            const start_parts = aimming_start.split('.');
+            let start_integerPart = start_parts[0] || '00';
+            let start_decimalPart = start_parts[1] || '00'; // 如果没有小数部分，默认为0
+            if (start_integerPart.length === 1) {
+                start_integerPart = '0' + start_integerPart;
+            }
+           start_integerPart = parseInt(start_integerPart,10).toString(16).padStart(2,'0');
+           start_decimalPart = parseInt(start_decimalPart,10).toString(16).padStart(2,'0');
+
+            const aimming_end = document.getElementById('channel_end_input').value;
+            const end_parts = aimming_end.split('.');
+            let end_integerPart = end_parts[0] || '00';
+            let end_decimalPart = end_parts[1] || '00'; // 如果没有小数部分，默认为0
+            if (end_integerPart.length === 1) {
+                end_integerPart = '0' + end_integerPart;
+            }
+            end_integerPart = parseInt(end_integerPart,10).toString(16).padStart(2,'0');
+            end_decimalPart = parseInt(end_decimalPart,10).toString(16).padStart(2,'0');
+
+            const aimming_time = parseInt(document.getElementById('channel_time_input').value,10).toString(16).padStart(2,'0');
+            const channel_1_en = channel1_en_flag ? '0x01':'0x00';
+            const channel_2_en = channel2_en_flag ? '0x01':'0x00';
+            const channel_3_en = channel3_en_flag ? '0x01':'0x00';
+            const channel_4_en = channel4_en_flag ? '0x01':'0x00';
+            let aimming_curve = '0x00';
+            if(aimming_curve1_flag) aimming_curve = '0x01';
+            if(aimming_curve2_flag) aimming_curve = '0x02';
+            if(aimming_curve3_flag) aimming_curve = '0x03';
+            const channel_circular = aimming_circular_flag ? '0x01':'0x00';
+            const aimming_maxminstoptime = parseInt(document.getElementById('channel_maxminstoptime_input').value,10).toString(16).padStart(2,'0');
+            await sendHexCommand(`0xff 0x${start_integerPart} 0x${start_decimalPart} 0x${end_integerPart} 0x${end_decimalPart} 0x${aimming_time} ${channel_1_en} ${channel_2_en} ${channel_3_en} ${channel_4_en} ${aimming_curve} ${channel_circular} ${aimming_maxminstoptime} 0xf0`);
+
+        }
+        async function aimming_tingzhi() {
+            await sendHexCommand("0xBB 0xf0");
+            aimming_stop = false;
+            channel_zanting_button.innerHTML = '暂停调光';
+            channel_zanting_button.classList.remove('btn-primary');
+            channel_zanting_button.classList.add('btn-danger');
+        }
+        async function aimming_circular() {
+            if(aimming_circular_flag){
+                aimming_circular_flag = false;
+                channel_circular_button.innerHTML = '循环调光:关';
+                channel_circular_button.classList.remove('btn-primary');
+                channel_circular_button.classList.add('btn-danger');
+                addToConsole("循环调光:关闭");
+            }
+            else{
+                aimming_circular_flag = true;
+                channel_circular_button.innerHTML = '循环调光:开';
+                channel_circular_button.classList.remove('btn-danger');
+                channel_circular_button.classList.add('btn-primary');
+                addToConsole("循环调光:开启");
+            }
+        }
+
+        async function aimming_zanting() {
+            if (aimming_stop) {
+                aimming_stop = false;
+                await sendHexCommand('0x00 0xf0');
+                channel_zanting_button.innerHTML = '暂停调光';
+                channel_zanting_button.classList.remove('btn-primary');
+                channel_zanting_button.classList.add('btn-danger');
+            } else {
+                aimming_stop = true;
+                await sendHexCommand('0xAA 0xf0');
+                channel_zanting_button.innerHTML = '已暂停';
+                channel_zanting_button.classList.remove('btn-danger');
+                channel_zanting_button.classList.add('btn-primary');
+            }
+        }
+
+        function channel1_enable() {
+            if(!channel1_en_flag){
+                channel1_en_flag = true;
+                channel1_en.innerHTML = '通道1:开';
+                channel1_en.classList.remove('btn-danger');
+                channel1_en.classList.add('btn-primary');
+            }
+            else{
+                channel1_en_flag = false;
+                channel1_en.innerHTML = '通道1:关';
+                channel1_en.classList.remove('btn-primary');
+                channel1_en.classList.add('btn-danger');
+            }
+        }
+        function channel2_enable() {
+            if(!channel2_en_flag){
+                channel2_en_flag = true;
+                channel2_en.innerHTML = '通道2:开';
+                channel2_en.classList.remove('btn-danger');
+                channel2_en.classList.add('btn-primary');
+            }
+            else{
+                channel2_en_flag = false;
+                channel2_en.innerHTML = '通道2:关';
+                channel2_en.classList.remove('btn-primary');
+                channel2_en.classList.add('btn-danger');
+            }
+        }
+        function channel3_enable() {
+            if(!channel3_en_flag){
+                channel3_en_flag = true;
+                channel3_en.innerHTML = '通道3:开';
+                channel3_en.classList.remove('btn-danger');
+                channel3_en.classList.add('btn-primary');
+            }
+            else{
+                channel3_en_flag = false;
+                channel3_en.innerHTML = '通道3:关';
+                channel3_en.classList.remove('btn-primary');
+                channel3_en.classList.add('btn-danger');
+            }
+        }
+        function channel4_enable() {
+            if(!channel4_en_flag){
+                channel4_en_flag = true;
+                channel4_en.innerHTML = '通道4:开';
+                channel4_en.classList.remove('btn-danger');
+                channel4_en.classList.add('btn-primary');
+            }
+            else{
+                channel4_en_flag = false;
+                channel4_en.innerHTML = '通道4:关';
+                channel4_en.classList.remove('btn-primary');
+                channel4_en.classList.add('btn-danger');
+            }
+        }
+        // 切换串口连接状态
+        async function toggleSerialPort() {
+            if (isPortOpen) {
+                await closeSerialPort();
+                togglePortBtn.innerHTML = '<i class="fas fa-power-off mr-2"></i>连接串口';
+                connectionStatus.innerHTML = '<i class="fas fa-circle mr-2 text-xs"></i> 未连接';
+                connectionStatus.classList.remove('bg-green-500');
+                connectionStatus.classList.add('bg-red-500');
+                addToConsole('> 串口已断开');
+            } else {
+                try {
+                    serialPort = await navigator.serial.requestPort();
+                    await openSerialPort();
+                    togglePortBtn.innerHTML = '<i class="fas fa-power-off mr-2"></i>断开串口';
+                    connectionStatus.innerHTML = '<i class="fas fa-circle mr-2 text-xs"></i> 已连接';
+                    connectionStatus.classList.remove('bg-red-500');
+                    connectionStatus.classList.add('bg-green-500');
+                    addToConsole('> 串口已连接');
+                } catch (error) {
+                    console.error('打开串口错误:', error);
+                    addToConsole(`> 打开串口错误: ${error.message},请尝试重新打开`);
+                }
+            }
+        }
+        // 打开串口
+        async function openSerialPort() {
+            if (!serialPort || isPortOpen) return;
+            try {
+                const baudRate = parseInt(document.getElementById('baud-rate').value);
+                const dataBits = parseInt(document.getElementById('data-bits').value);
+                const stopBits = parseInt(document.getElementById('stop-bits').value);
+                const parity = document.getElementById('parity').value;
+                await serialPort.open({
+                    baudRate: baudRate,
+                    dataBits: dataBits,
+                    stopBits: stopBits,
+                    parity: parity.toLowerCase(),
+                    flowControl: 'none',
+                    dtr:false
+                });
+
+                isPortOpen = true;
+                isClosing = false;
+                serialPort.addEventListener('disconnect', handleDisconnect);
+                // 开始读取数据监听，等待数据
+                readSerialData();
+            } catch (error) {
+                console.error('串口配置错误:', error);
+                addToConsole(`> 串口配置错误: ${error.message}`);
+                await closeSerialPort();
+                throw error;
+            }
+        }
+        // 关闭串口
+        async function closeSerialPort() {
+            if (isClosing) return;
+            isClosing = true;
+            // 清除所有定时器
+            if (receiveTimer) {
+                clearTimeout(receiveTimer);
+                receiveTimer = null;
+            }
+            // 移除事件监听器
+            if (serialPort) {
+                serialPort.removeEventListener('disconnect', handleDisconnect);
+            }
+            // 取消读取器
+            if (readerController) {
+                try {
+                    readerController.abort();
+                } catch (e) {}
+                readerController = null;
+            }
+            // 关闭写入器
+            if (writer) {
+                try {
+                    await writer.close();
+                } catch (e) {}
+                writer = null;
+            }
+            // 释放读取器锁
+            if (reader) {
+                try {
+                    reader.releaseLock();
+                } catch (e) {}
+                reader = null;
+            }
+            // 关闭串口
+            if (serialPort) {
+                try {
+                    await serialPort.close();
+                } catch (e) {}
+                serialPort = null; // 关键：断开后设置为 null
+            }
+            // 重置所有状态变量
+            isPortOpen = false;
+            isClosing = false;
+            isDisconnected = false;
+            receiveBuffer = new Uint8Array(0);
+            addToConsole('> 串口资源已完全释放');
+        }
+        // 串口断开处理函数
+       function handleDisconnect() {
+            if (isPortOpen && !isClosing) { //串口既不是打开状态也不是关闭状态
+                isDisconnected = true;
+                addToConsole('> 警告：串口连接已丢失');
+                closeSerialPort().then(() => {
+                    togglePortBtn.innerHTML = '<i class="fas fa-power-off mr-2"></i>打开串口';
+                    connectionStatus.innerHTML = '<i class="fas fa-circle mr-2 text-xs"></i> 未连接';
+                    connectionStatus.classList.remove('bg-green-500');
+                    connectionStatus.classList.add('bg-red-500');
+                    addToConsole('> 已自动关闭断开的串口');
+                });
+            }
+        }
+        // 读取串口数据
+        async function readSerialData() {
+            if (!serialPort || !serialPort.readable || isClosing) return;
+
+            try {
+                reader = serialPort.readable.getReader();
+                readerController = new AbortController();
+                const signal = readerController.signal;
+                while (!signal.aborted) {
+                    try {
+                        const { value, done } = await reader.read();
+                        if (done || signal.aborted) break;
+
+                              // 将新数据追加到缓冲区
+                              const newData = value;
+                              const tempBuffer = new Uint8Array(receiveBuffer.length + newData.length);
+                              tempBuffer.set(receiveBuffer, 0);
+                              tempBuffer.set(newData, receiveBuffer.length);
+                              receiveBuffer = tempBuffer;
+
+                              // 重置/启动超时定时器
+                              if (receiveTimer) clearTimeout(receiveTimer);
+                              receiveTimer = setTimeout(() => {
+                                if (receiveBuffer.length > 0) {
+                                  processReceivedData(receiveBuffer);
+                                  receiveBuffer = new Uint8Array(0); // 清空缓冲区
+                                }
+                              }, receiveTimeout);
+                    }catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.error('读取数据错误:', error);
+                            addToConsole(`> 读取数据错误: ${error.message}`);
+                        }
+                        break;
+                    }
+                }
+            } catch (error) {
+                console.error('获取读取器错误:', error);
+                addToConsole(`> 获取读取器错误: ${error.message}`);
+            } finally {
+                if (reader) {
+                    try {
+                        reader.releaseLock();
+                    } catch (e) {}
+                    reader = null;
+                }
+                readerController = null;
+            }
+        }
+
+        // 处理接收到的数据
+        function processReceivedData(data) {
+            let text;
+            try {
+                const decoder = new TextDecoder('GBK');
+                text = decoder.decode(data);
+            } catch (e) {
+                // 尝试其他编码或显示原始数据
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    text = decoder.decode(data);
+                }catch (e) {
+                    console.error('解码失败:', e);
+                }
+            }
+            if(text[0] =='Q') {
+                const str_text = text.substring(1,6);
+                const percentValue = parseFloat(str_text);
+                updateBulbBrightness(percentValue / 100);
+                //document.getElementById('brightnessPercent').innerHTML = `${str_text}%`;
+                return;
+            }
+            addToConsole(`< ${text}`);
+        }
+
+        // 发送十六进制指令
+        async function sendHexCommand(command) {
+            try {
+                // 移除0x前缀和空格
+                const hexString = command.replace(/0x|\s+/g, '');
+                // 转换为字节数组
+                const bytes = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                // 发送数据
+                writer = serialPort.writable.getWriter();
+                await writer.write(bytes);
+                writer.releaseLock();
+                writer = null;
+            } catch (error) {
+                console.error('发送指令错误:', error);
+                addToConsole(`> 发送错误: ${error.message}`);
+            }
+        }
+
+        // 发送文本指令
+        async function sendTextCommand(command) {
+            try {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                writer = serialPort.writable.getWriter();
+                await writer.write(data);
+                writer.releaseLock();
+                writer = null;
+                addToConsole(`> 发送: ${command}`);
+            } catch (error) {
+                console.error('发送指令错误:', error);
+                addToConsole(`> 发送错误: ${error.message}`);
+            }
+        }
+
+        function clear() {
+           consoleOutput.innerHTML = '';
+        }
+
+        // 添加内容到控制台
+        function addToConsole(message) {
+            const div = document.createElement('div');
+            div.innerHTML = message;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
